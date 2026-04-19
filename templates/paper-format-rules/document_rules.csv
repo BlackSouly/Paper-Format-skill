@@ -1,0 +1,2 @@
+rule_id,object_type,scope,paper_size,orientation,margin_top_cm,margin_bottom_cm,margin_left_cm,margin_right_cm,header_distance_cm,footer_distance_cm,page_number_requirement,notes
+DOC-001,document,full,A4,portrait,2.54,2.54,3.18,3.18,1.50,1.75,"footer centered arabic numerals","Example row - replace with your real requirement"

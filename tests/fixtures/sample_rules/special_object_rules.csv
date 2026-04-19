@@ -1,0 +1,3 @@
+rule_id,priority,object_type,match_type,match_value,target_object_type
+SPO-001,20,header,text,Section,header
+SPO-002,10,footer,text,References,footer

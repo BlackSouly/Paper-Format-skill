@@ -1,0 +1,118 @@
+rule_id,priority,match_type,match_value,target_property,target_value
+PAR-001,10,style,Heading 1,font_name,SimHei
+PAR-002,11,style,Heading 1,font_size,12pt
+PAR-003,12,style,Heading 1,line_spacing,20pt
+PAR-004,20,regex,^\d+\.\d+(\.\d+)?\s,font_name,KaiTi
+PAR-005,21,regex,^\d+\.\d+(\.\d+)?\s,font_size,12pt
+PAR-006,22,regex,^\d+\.\d+(\.\d+)?\s,line_spacing,20pt
+PAR-007,30,style,my-zhengwen,font_name,FangSong
+PAR-008,31,style,my-zhengwen,font_size,12pt
+PAR-009,32,style,my-zhengwen,first_line_indent,0.74cm
+PAR-010,33,style,my-zhengwen,line_spacing,20pt
+PAR-011,34,style,my-zhengwen,space_before,0pt
+PAR-012,35,style,my-zhengwen,space_after,0pt
+PAR-013,40,regex,^【摘要】,content_font_name,SimSun
+PAR-014,41,regex,^【摘要】,font_size,12pt
+PAR-015,42,regex,^【摘要】,first_line_indent,0.74cm
+PAR-016,43,regex,^【摘要】,line_spacing,20pt
+PAR-100,44,regex,^【关键词】,content_font_name,SimSun
+PAR-101,45,regex,^【Abstract】,font_name,Times New Roman
+PAR-102,46,regex,^【KeyWords】,font_name,Times New Roman
+PAR-103,47,regex,^.+\[[A-Z]\]\s*\.,font_name,SimSun
+PAR-104,48,regex,^.+\[[A-Z]\]\s*\.,hanging_indent,0.74cm
+PAR-105,44,regex,^【摘要】,label_font_name,SimHei
+PAR-106,45,regex,^【摘要】,label_bold,true
+PAR-111,46,regex,^【摘要】,label_font_size,15pt
+PAR-107,45,regex,^【关键词】,label_font_name,SimHei
+PAR-108,46,regex,^【关键词】,label_bold,true
+PAR-112,47,regex,^【关键词】,label_font_size,15pt
+PAR-117,48,regex,^【关键词】,content_font_size,12pt
+PAR-109,46,regex,^【Abstract】,label_bold,true
+PAR-113,47,regex,^【Abstract】,label_font_size,15pt
+PAR-114,48,regex,^【Abstract】,content_font_size,12pt
+PAR-110,47,regex,^【KeyWords】,label_bold,true
+PAR-115,48,regex,^【KeyWords】,label_font_size,15pt
+PAR-116,49,regex,^【KeyWords】,content_font_size,12pt
+PAR-017,50,text,参考文献,font_name,SimHei
+PAR-018,51,text,参考文献,font_size,16pt
+PAR-019,52,text,参考文献,line_spacing,17pt
+PAR-020,60,style,toc 1,font_name,SimHei
+PAR-021,61,style,toc 1,font_size,16pt
+PAR-022,62,style,toc 2,font_name,SimHei
+PAR-023,63,style,toc 2,font_size,14pt
+PAR-024,70,style,md-focus-p,font_name,FangSong
+PAR-025,71,style,md-focus-p,font_size,12pt
+PAR-026,72,style,md-focus-p,first_line_indent,0.74cm
+PAR-027,73,style,md-focus-p,line_spacing,20pt
+PAR-028,74,style,md-focus-p,space_before,0pt
+PAR-029,75,style,md-focus-p,space_after,0pt
+PAR-030,80,regex,"^.{20,}$",font_name,FangSong
+PAR-031,81,regex,"^.{20,}$",font_size,12pt
+PAR-032,82,regex,"^.{20,}$",first_line_indent,0.74cm
+PAR-033,83,regex,"^.{20,}$",line_spacing,20pt
+PAR-034,84,regex,"^.{20,}$",space_before,0pt
+PAR-035,85,regex,"^.{20,}$",space_after,0pt
+PAR-036,90,text,目  录,font_name,SimHei
+PAR-037,91,text,目  录,font_size,16pt
+PAR-038,100,regex,^图\d+\s,font_name,SimSun
+PAR-039,101,regex,^图\d+\s,font_size,10.5pt
+PAR-040,110,regex,^表[一二三四五六七八九十百\d]+[：:]\s*,font_name,SimSun
+PAR-041,111,regex,^表[一二三四五六七八九十百\d]+[：:]\s*,font_size,10.5pt
+PAR-042,120,regex,^（\d+）,font_name,FangSong
+PAR-043,121,regex,^（\d+）,font_size,12pt
+PAR-044,122,regex,^（\d+）,first_line_indent,0.74cm
+PAR-045,123,regex,^（\d+）,line_spacing,20pt
+PAR-046,124,regex,^（\d+）,space_before,0pt
+PAR-047,125,regex,^（\d+）,space_after,0pt
+PAR-048,130,text,毕业论文(设计),font_name,SimHei
+PAR-049,131,text,毕业论文(设计),font_size,16pt
+PAR-050,132,text,毕业设计开题报告,font_name,SimHei
+PAR-051,133,text,毕业设计开题报告,font_size,16pt
+PAR-052,134,text,毕业论文(设计)任务书,font_name,SimHei
+PAR-053,135,text,毕业论文(设计)任务书,font_size,16pt
+PAR-054,136,text,毕业论文审查及成果管理系统,font_name,SimHei
+PAR-055,137,text,毕业论文审查及成果管理系统,font_size,16pt
+PAR-056,140,text,指导教师审查意见,font_name,SimHei
+PAR-057,141,text,指导教师审查意见,font_size,14pt
+PAR-058,142,text,评阅教师评语,font_name,SimHei
+PAR-059,143,text,评阅教师评语,font_size,14pt
+PAR-060,144,text,答辩会议记录,font_name,SimHei
+PAR-061,145,text,答辩会议记录,font_size,14pt
+PAR-062,150,regex,^[一二三四五六七八九十]+、,font_name,SimHei
+PAR-063,151,regex,^[一二三四五六七八九十]+、,font_size,12pt
+PAR-064,152,regex,^[一二三四五六七八九十]+、,line_spacing,20pt
+PAR-065,160,regex,^\d+[、．],font_name,SimHei
+PAR-066,161,regex,^\d+[、．],font_size,12pt
+PAR-067,162,regex,^\d+[、．],line_spacing,20pt
+PAR-068,170,regex,^学\s*生：,font_name,FangSong
+PAR-069,171,regex,^学\s*生：,font_size,12pt
+PAR-070,172,regex,^指导教师：,font_name,FangSong
+PAR-071,173,regex,^指导教师：,font_size,12pt
+PAR-072,180,text,长江大学,font_name,SimHei
+PAR-073,181,text,长江大学,font_size,16pt
+PAR-074,190,text,附录,font_name,SimHei
+PAR-075,191,text,附录,font_size,16pt
+PAR-076,200,regex,^是否通过测试：,font_name,FangSong
+PAR-077,201,regex,^是否通过测试：,font_size,12pt
+PAR-078,210,regex,^如图\d+,font_name,FangSong
+PAR-079,211,regex,^如图\d+,font_size,12pt
+PAR-080,220,regex,^[^。；！？]*如下：$,font_name,FangSong
+PAR-081,221,regex,^[^。；！？]*如下：$,font_size,12pt
+PAR-082,230,class,header,font_name,SimSun
+PAR-083,231,class,header,font_size,10.5pt
+PAR-084,240,text,毕业论文(设计)题目,font_name,SimHei
+PAR-085,241,text,毕业论文(设计)题目,font_size,12pt
+PAR-086,250,regex,^刊\.\d{4}\.\d{2}：\d+-\d+$,font_name,FangSong
+PAR-087,251,regex,^刊\.\d{4}\.\d{2}：\d+-\d+$,font_size,12pt
+PAR-088,260,text,（注：此页不够，请转反面）,font_name,FangSong
+PAR-089,261,text,（注：此页不够，请转反面）,font_size,12pt
+PAR-090,270,regex,^第[一二三四五六七八九十]+章：,font_name,FangSong
+PAR-091,271,regex,^第[一二三四五六七八九十]+章：,font_size,12pt
+PAR-092,280,regex,^.*如图\d+所示。$,font_name,FangSong
+PAR-093,281,regex,^.*如图\d+所示。$,font_size,12pt
+PAR-094,290,regex,^表[一二三四五六七八九十百]+\s+.*表$,font_name,SimSun
+PAR-095,291,regex,^表[一二三四五六七八九十百]+\s+.*表$,font_size,10.5pt
+PAR-096,300,text,杨健,font_name,FangSong
+PAR-097,301,text,杨健,font_size,12pt
+PAR-098,310,regex,"^\d{4}年\d{1,2}月$",font_name,FangSong
+PAR-099,311,regex,"^\d{4}年\d{1,2}月$",font_size,12pt

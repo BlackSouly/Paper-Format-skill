@@ -1,0 +1,4 @@
+rule_id,object_type,applies_to,numbering_style,separator,indent,tab_stop,rebuild_numbering,notes
+NUM-001,heading_level_1,heading_level_1,第X章,none,0char,0char,TRUE,"Choose the actual style required by the school"
+NUM-002,heading_level_2,heading_level_2,1.1,space,0char,0.5char,TRUE,
+NUM-003,heading_level_3,heading_level_3,1.1.1,space,0char,0.5char,TRUE,

@@ -1,0 +1,2 @@
+rule_id,priority,object_type,match_type,match_value,target_object_type
+SPC-001,10,header,regex,.*,header

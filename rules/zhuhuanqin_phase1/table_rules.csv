@@ -1,0 +1,3 @@
+rule_id,priority,match_type,match_value,target_property,target_value
+TAB-001,10,regex,.*,font_name,SimSun
+TAB-002,11,regex,.*,font_size,10.5pt

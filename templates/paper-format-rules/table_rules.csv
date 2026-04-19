@@ -1,0 +1,2 @@
+rule_id,object_type,match_type,match_value,priority,cn_font,en_font,font_size,bold,italic,underline,alignment,vertical_alignment,line_spacing,cell_margin,border_policy,notes
+TAB-001,table_body,word_object,table_cell,10,宋体,Times New Roman,五号,FALSE,FALSE,FALSE,center,middle,single,default,normalize_all,"Adjust alignment and border policy to your requirement"

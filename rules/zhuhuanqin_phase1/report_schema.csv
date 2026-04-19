@@ -1,0 +1,12 @@
+column_name,order,description
+object_id,1,Stable object identifier
+object_type_before,2,Object type before normalization
+object_type_after,3,Object type after normalization
+location,4,Document location for review
+text_preview,5,Preview of matched text
+property,6,Property name
+before,7,Original value
+after,8,Normalized value
+rule_id,9,Applied rule identifier
+status,10,Change status
+reason,11,Status explanation

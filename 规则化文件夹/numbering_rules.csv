@@ -1,0 +1,5 @@
+rule_id,priority,match_type,match_value,target_property,target_value
+NUM-001,10,regex,^第[一二三四五六七八九十]+章\s,heading_level,1
+NUM-002,20,regex,^第[一二三四五六七八九十]+节\s,heading_level,2
+NUM-003,30,regex,^[一二三四五六七八九十]+、,heading_level,3
+NUM-004,40,regex,^（[一二三四五六七八九十]+）,heading_level,4

@@ -1,0 +1,12 @@
+rule_id,object_type,match_type,match_value,match_scope,priority,cn_font,en_font,font_size,bold,italic,underline,color,alignment,first_line_indent,line_spacing,space_before_pt,space_after_pt,page_break_before,keep_with_next,keep_lines_together,widow_control,numbering_rule_id,notes
+TXT-001,paper_title,text_equals,论文题目_placeholder,paragraph,10,黑体,Times New Roman,二号,TRUE,FALSE,FALSE,auto,center,0char,single,0,18,FALSE,FALSE,TRUE,TRUE,,"Replace the text match with your actual rule"
+TXT-002,abstract_title,text_equals,摘要,paragraph,20,黑体,Times New Roman,小三,TRUE,FALSE,FALSE,auto,center,0char,1.5x,12,12,FALSE,FALSE,TRUE,TRUE,,
+TXT-003,abstract_body,between_markers,"摘要|关键词",section,30,宋体,Times New Roman,小四,FALSE,FALSE,FALSE,auto,justify,2char,1.5x,0,0,FALSE,FALSE,TRUE,TRUE,,
+TXT-004,heading_level_1,regex,^第[一二三四五六七八九十]+章$|^\d+$,paragraph,40,黑体,Times New Roman,三号,TRUE,FALSE,FALSE,auto,center,0char,1.5x,12,12,TRUE,FALSE,TRUE,TRUE,NUM-001,
+TXT-005,heading_level_2,regex,^\d+\.\d+$,paragraph,50,黑体,Times New Roman,四号,TRUE,FALSE,FALSE,auto,left,0char,1.5x,12,6,FALSE,FALSE,TRUE,TRUE,NUM-002,
+TXT-006,body_text,default,body_residual,paragraph,999,宋体,Times New Roman,小四,FALSE,FALSE,FALSE,auto,justify,2char,1.5x,0,0,FALSE,FALSE,TRUE,TRUE,,
+TXT-007,figure_caption,regex,^图\d+,paragraph,60,宋体,Times New Roman,五号,FALSE,FALSE,FALSE,auto,center,0char,single,6,6,FALSE,FALSE,TRUE,TRUE,,
+TXT-008,table_caption,regex,^表\d+,paragraph,70,宋体,Times New Roman,五号,FALSE,FALSE,FALSE,auto,center,0char,single,6,6,FALSE,FALSE,TRUE,TRUE,,
+TXT-009,footnote,word_object,footnote,footnote,80,宋体,Times New Roman,小五,FALSE,FALSE,FALSE,auto,justify,0char,single,0,0,FALSE,FALSE,TRUE,TRUE,,
+TXT-010,references_title,text_equals,参考文献,paragraph,90,黑体,Times New Roman,小三,TRUE,FALSE,FALSE,auto,center,0char,1.5x,12,12,TRUE,FALSE,TRUE,TRUE,,
+TXT-011,reference_entry,after_marker,参考文献,section,100,宋体,Times New Roman,五号,FALSE,FALSE,FALSE,auto,justify,hanging2char,single,0,0,FALSE,FALSE,TRUE,TRUE,,

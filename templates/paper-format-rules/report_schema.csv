@@ -1,0 +1,12 @@
+column_name,required,description,example
+object_id,TRUE,Unique stable object identifier,paragraph-128
+object_type_before,TRUE,Object type before normalization,body_text
+object_type_after,TRUE,Object type after normalization,heading_level_1
+location,TRUE,Human-readable location,Page 3 Paragraph 2
+text_preview,TRUE,Short preview of the affected content,1. 研究背景
+property,TRUE,Normalized property name,cn_font
+before,TRUE,Property value before normalization,楷体
+after,TRUE,Property value after normalization,黑体
+rule_id,TRUE,Matched rule identifier,TXT-004
+status,TRUE,modified|unchanged|unresolved,modified
+reason,TRUE,Why the rule matched,Matched heading regex

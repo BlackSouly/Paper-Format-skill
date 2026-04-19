@@ -1,0 +1,111 @@
+rule_id,priority,match_type,match_value,target_property,target_value
+PAR-001,10,text,硕 士学 位 论 文,font_name,SimHei
+PAR-002,11,text,硕 士学 位 论 文,font_size,24pt
+PAR-003,20,text,“可对话性”的构建：算法解释权的,font_name,SimHei
+PAR-004,21,text,“可对话性”的构建：算法解释权的,font_size,24pt
+PAR-005,22,text,实践困境与治理重构,font_name,SimHei
+PAR-006,23,text,实践困境与治理重构,font_size,24pt
+PAR-007,30,regex,^姓名：.*学号：,font_name,SimSun
+PAR-008,31,regex,^姓名：.*学号：,font_size,14pt
+PAR-009,40,text,学位论文独创性声明,font_name,SimSun
+PAR-010,41,text,学位论文独创性声明,font_size,22pt
+PAR-011,42,text,学位论文独创性声明,line_spacing,1
+PAR-012,43,text,学位论文使用授权声明,font_name,SimSun
+PAR-013,44,text,学位论文使用授权声明,font_size,22pt
+PAR-014,45,text,学位论文使用授权声明,line_spacing,1
+PAR-015,50,regex,^本人郑重声明：,font_name,SimSun
+PAR-016,51,regex,^本人郑重声明：,font_size,14pt
+PAR-017,52,regex,^本人郑重声明：,line_spacing,28pt
+PAR-018,53,regex,^研究生在校攻读学位期间论文工作的知识产权单位属南京师范大学。,font_name,SimSun
+PAR-019,54,regex,^研究生在校攻读学位期间论文工作的知识产权单位属南京师范大学。,font_size,14pt
+PAR-020,55,regex,^研究生在校攻读学位期间论文工作的知识产权单位属南京师范大学。,line_spacing,28pt
+PAR-021,60,regex,^学位论文作者签名：,font_name,SimSun
+PAR-022,61,regex,^学位论文作者签名：,font_size,14pt
+PAR-023,62,regex,^日\s*期：,font_name,SimSun
+PAR-024,63,regex,^日\s*期：,font_size,14pt
+PAR-024A,64,text,索取号：,font_name,SimSun
+PAR-024B,65,text,索取号：,font_size,14pt
+PAR-025,70,style,Heading 1,font_name,SimSun
+PAR-026,71,style,Heading 1,font_size,16pt
+PAR-027,72,style,Heading 1,line_spacing,3
+PAR-028,80,text,Abstract,font_name,Times New Roman
+PAR-031,90,text,摘  要,font_name,SimSun
+PAR-032,91,text,摘  要,font_size,16pt
+PAR-033,92,text,摘  要,line_spacing,3
+PAR-034,100,text,目 录,font_name,SimSun
+PAR-035,101,text,目 录,font_size,16pt
+PAR-036,102,text,目 录,line_spacing,3
+PAR-037,110,style,Heading 2,font_name,SimSun
+PAR-038,111,style,Heading 2,font_size,15pt
+PAR-039,112,style,Heading 2,line_spacing,1
+PAR-040,113,style,Heading 2,space_before,12pt
+PAR-041,114,style,Heading 2,space_after,12pt
+PAR-042,120,style,Heading 3,font_name,SimHei
+PAR-043,121,style,Heading 3,font_size,14pt
+PAR-044,122,style,Heading 3,line_spacing,1
+PAR-045,123,style,Heading 3,space_before,6pt
+PAR-046,124,style,Heading 3,space_after,6pt
+PAR-047,130,regex,^（[一二三四五六七八九十]+）,font_name,KaiTi
+PAR-048,131,regex,^（[一二三四五六七八九十]+）,font_size,12pt
+PAR-049,132,regex,^（[一二三四五六七八九十]+）,first_line_indent,0.74cm
+PAR-050,133,regex,^（[一二三四五六七八九十]+）,line_spacing,20pt
+PAR-051,134,regex,^（[一二三四五六七八九十]+）,space_before,0pt
+PAR-052,135,regex,^（[一二三四五六七八九十]+）,space_after,0pt
+PAR-053,140,regex,^关键词[:：],font_name,SimSun
+PAR-054,141,regex,^关键词[:：],font_size,12pt
+PAR-055,142,regex,^关键词[:：],line_spacing,20pt
+PAR-056,143,regex,^关键词[:：],space_before,0pt
+PAR-057,144,regex,^关键词[:：],space_after,0pt
+PAR-058,150,regex,^Keywords[:：],font_name,Times New Roman
+PAR-059,151,regex,^Keywords[:：],font_size,12pt
+PAR-060,152,regex,^Keywords[:：],line_spacing,20pt
+PAR-061,153,regex,^Keywords[:：],space_before,0pt
+PAR-062,154,regex,^Keywords[:：],space_after,0pt
+PAR-063,160,regex,"^[A-Za-z].{20,}$",font_name,Times New Roman
+PAR-064,161,regex,"^[A-Za-z].{20,}$",font_size,12pt
+PAR-065,162,regex,"^[A-Za-z].{20,}$",line_spacing,20pt
+PAR-066,170,regex,"^[一-龥“‘（《].{20,}$",font_name,SimSun
+PAR-067,171,regex,"^[一-龥“‘（《].{20,}$",font_size,12pt
+PAR-068,172,regex,"^[一-龥“‘（《].{20,}$",first_line_indent,0.74cm
+PAR-069,173,regex,"^[一-龥“‘（《].{20,}$",line_spacing,20pt
+PAR-070,174,regex,"^[一-龥“‘（《].{20,}$",space_before,0pt
+PAR-071,175,regex,"^[一-龥“‘（《].{20,}$",space_after,0pt
+PAR-071A,176,regex,"^[0-9].{20,}$",font_name,SimSun
+PAR-071B,177,regex,"^[0-9].{20,}$",font_size,12pt
+PAR-071C,178,regex,"^[0-9].{20,}$",first_line_indent,0.74cm
+PAR-071D,179,regex,"^[0-9].{20,}$",line_spacing,20pt
+PAR-071E,180,regex,"^[0-9].{20,}$",space_before,0pt
+PAR-071F,181,regex,"^[0-9].{20,}$",space_after,0pt
+PAR-071G,182,regex,^如何.*[？?]$,font_name,SimSun
+PAR-071H,183,regex,^如何.*[？?]$,font_size,12pt
+PAR-071I,184,regex,^如何.*[？?]$,line_spacing,20pt
+PAR-071J,185,regex,^\[.*\].+$,font_name,SimSun
+PAR-071K,186,regex,^\[.*\].+$,font_size,12pt
+PAR-071L,187,regex,^\[.*\].+$,line_spacing,20pt
+PAR-072,180,style,footnote text,font_name,SimSun
+PAR-073,181,style,footnote text,font_size,12pt
+PAR-074,182,style,footnote text,line_spacing,20pt
+PAR-075,190,regex,^图\d+\.\d+\s+,font_name,SimSun
+PAR-076,191,regex,^图\d+\.\d+\s+,font_size,10.5pt
+PAR-077,192,regex,^图\d+\.\d+\s+,line_spacing,1.5
+PAR-078,193,regex,^图\d+\.\d+\s+,space_before,6pt
+PAR-079,194,regex,^图\d+\.\d+\s+,space_after,12pt
+PAR-080,200,regex,^Figure\s+\d+\.\d+\s+,font_name,Times New Roman
+PAR-081,201,regex,^Figure\s+\d+\.\d+\s+,font_size,10.5pt
+PAR-082,202,regex,^Figure\s+\d+\.\d+\s+,line_spacing,1.5
+PAR-083,203,regex,^Figure\s+\d+\.\d+\s+,space_before,6pt
+PAR-084,204,regex,^Figure\s+\d+\.\d+\s+,space_after,12pt
+PAR-085,210,regex,^表\d+\.\d+\s+,font_name,SimSun
+PAR-086,211,regex,^表\d+\.\d+\s+,font_size,10.5pt
+PAR-087,212,regex,^表\d+\.\d+\s+,line_spacing,1.5
+PAR-088,213,regex,^表\d+\.\d+\s+,space_before,6pt
+PAR-089,214,regex,^表\d+\.\d+\s+,space_after,6pt
+PAR-089A,215,regex,^表\d+-\d+$,font_name,SimSun
+PAR-089B,216,regex,^表\d+-\d+$,font_size,10.5pt
+PAR-090,220,regex,^Table\s+\d+\.\d+\s+,font_name,Times New Roman
+PAR-091,221,regex,^Table\s+\d+\.\d+\s+,font_size,10.5pt
+PAR-092,222,regex,^Table\s+\d+\.\d+\s+,line_spacing,1.5
+PAR-093,223,regex,^Table\s+\d+\.\d+\s+,space_before,6pt
+PAR-094,224,regex,^Table\s+\d+\.\d+\s+,space_after,6pt
+PAR-095,230,class,header,font_name,SimSun
+PAR-096,231,class,header,font_size,10.5pt

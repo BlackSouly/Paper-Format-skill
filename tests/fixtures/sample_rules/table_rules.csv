@@ -1,0 +1,3 @@
+rule_id,priority,match_type,match_value,target_property,target_value
+TAB-001,20,style,Table Grid,border_style,single
+TAB-002,10,text,Caption,caption_style,Table Caption

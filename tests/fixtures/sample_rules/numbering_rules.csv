@@ -1,0 +1,3 @@
+rule_id,priority,match_type,match_value,target_property,target_value
+NUM-001,30,style,Heading 1,level,1
+NUM-002,10,style,Heading 2,level,2

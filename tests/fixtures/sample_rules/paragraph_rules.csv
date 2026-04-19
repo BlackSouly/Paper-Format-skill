@@ -1,0 +1,4 @@
+rule_id,priority,match_type,match_value,target_property,target_value
+PAR-001,20,text,Abstract,font_name,SimSun
+PAR-002,10,style,Body Text,font_name,Times New Roman
+PAR-003,10,text,Keywords,font_name,SimSun

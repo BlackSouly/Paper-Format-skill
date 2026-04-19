@@ -1,0 +1,5 @@
+rule_id,priority,property_name,value,scope
+DOC-001,10,page_margin_top,2.54cm,document
+DOC-002,11,page_margin_bottom,2.54cm,document
+DOC-003,12,page_margin_left,3.17cm,document
+DOC-004,13,page_margin_right,3.17cm,document

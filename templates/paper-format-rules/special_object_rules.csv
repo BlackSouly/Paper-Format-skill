@@ -1,7 +1,11 @@
-rule_id,object_type,match_type,match_value,priority,cn_font,en_font,font_size,bold,italic,underline,alignment,line_spacing,processing_strategy,notes
-SPC-001,header,word_object,header,10,宋体,Times New Roman,五号,FALSE,FALSE,FALSE,center,single,normalize,
-SPC-002,footer,word_object,footer,20,宋体,Times New Roman,五号,FALSE,FALSE,FALSE,center,single,normalize,
-SPC-003,toc,word_object,toc_field,30,宋体,Times New Roman,小四,FALSE,FALSE,FALSE,left,1.5x,update_field_and_normalize,
-SPC-004,formula,word_object,equation,40,Cambria Math,Cambria Math,小四,FALSE,FALSE,FALSE,center,single,normalize_if_rule_defined,"Leave unresolved if your school has no explicit formula rule"
-SPC-005,textbox,word_object,textbox,50,宋体,Times New Roman,小四,FALSE,FALSE,FALSE,justify,1.5x,normalize,
-SPC-006,hyperlink,word_object,hyperlink,60,宋体,Times New Roman,小四,FALSE,FALSE,FALSE,inherit,inherit,preserve_link_target_and_normalize_text,
+rule_id,priority,object_type,match_type,match_value,target_object_type
+SPC-001,10,header,regex,.*,running_header
+SPC-002,11,default_header,regex,.*,default_running_header
+SPC-003,12,first_page_header,regex,.*,first_page_running_header
+SPC-004,13,even_page_header,regex,.*,even_page_running_header
+SPC-005,20,header_table,regex,.*,running_header_table
+SPC-006,30,footer,regex,.*,running_footer
+SPC-007,31,default_footer,regex,.*,default_running_footer
+SPC-008,32,first_page_footer,regex,.*,first_page_running_footer
+SPC-009,33,even_page_footer,regex,.*,even_page_running_footer
+SPC-010,40,footer_table,regex,.*,running_footer_table

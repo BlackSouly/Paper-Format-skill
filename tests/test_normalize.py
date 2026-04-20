@@ -6,6 +6,9 @@ from pathlib import Path
 
 import pytest
 from docx import Document
+from docx.enum.section import WD_SECTION_START
+from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.ns import qn
 from docx.shared import Cm, Pt, RGBColor
 
@@ -18,6 +21,7 @@ from paper_format_normalizer.model import (
     TableRule,
 )
 from paper_format_normalizer.normalize import normalize_document
+import paper_format_normalizer.normalize as normalize_module
 
 _BUILDER_PATH = Path(__file__).resolve().parent / "fixtures" / "sample_docx_builder.py"
 _BUILDER_SPEC = importlib.util.spec_from_file_location(
@@ -28,6 +32,8 @@ if _BUILDER_SPEC is None or _BUILDER_SPEC.loader is None:
     raise RuntimeError(f"Unable to load fixture builder from {_BUILDER_PATH}")
 _BUILDER_MODULE = importlib.util.module_from_spec(_BUILDER_SPEC)
 _BUILDER_SPEC.loader.exec_module(_BUILDER_MODULE)
+build_sample_docx = _BUILDER_MODULE.build_sample_docx
+build_header_footer_variant_docx = _BUILDER_MODULE.build_header_footer_variant_docx
 build_normalization_sample_docx = _BUILDER_MODULE.build_normalization_sample_docx
 build_mixed_run_font_size_docx = _BUILDER_MODULE.build_mixed_run_font_size_docx
 build_header_and_table_normalization_docx = _BUILDER_MODULE.build_header_and_table_normalization_docx
@@ -35,6 +41,34 @@ build_sparse_header_normalization_docx = _BUILDER_MODULE.build_sparse_header_nor
 build_mixed_script_font_name_docx = _BUILDER_MODULE.build_mixed_script_font_name_docx
 build_abstract_and_reference_docx = _BUILDER_MODULE.build_abstract_and_reference_docx
 build_inline_tag_docx = _BUILDER_MODULE.build_inline_tag_docx
+build_section_page_number_docx = _BUILDER_MODULE.build_section_page_number_docx
+
+
+def _cell_border_values(cell) -> set[str]:
+    tc_pr = cell._tc.tcPr
+    if tc_pr is None:
+        return set()
+    borders = tc_pr.find(qn("w:tcBorders"))
+    if borders is None:
+        return set()
+
+    values: set[str] = set()
+    for edge_name in ("top", "left", "bottom", "right"):
+        edge = borders.find(qn(f"w:{edge_name}"))
+        if edge is None:
+            values.add("")
+            continue
+        value = (edge.get(qn("w:val")) or "").lower()
+        values.add("none" if value in {"nil", "none"} else value)
+    return values
+
+
+def _section_pg_num_type(section):
+    return section._sectPr.find(qn("w:pgNumType"))
+
+
+def _footer_has_page_field(section) -> bool:
+    return " PAGE " in section.footer.paragraphs[0]._p.xml or "PAGE" in section.footer.paragraphs[0]._p.xml
 
 
 def test_normalize_document_writes_non_destructive_copy(tmp_path: Path) -> None:
@@ -56,6 +90,323 @@ def test_normalize_document_writes_non_destructive_copy(tmp_path: Path) -> None:
 
     assert source_document.sections[0].top_margin.cm == pytest.approx(5.0, abs=0.01)
     assert normalized_document.sections[0].top_margin.cm == pytest.approx(2.54, abs=0.01)
+
+
+def test_normalize_document_can_apply_page_number_rules_to_all_sections(tmp_path: Path) -> None:
+    input_path = build_section_page_number_docx(tmp_path / "sectioned.docx")
+
+    output_path, report_path, _ = normalize_document(
+        input_path,
+        _rule_set_with_page_number_rules(),
+        tmp_path / "normalized",
+    )
+
+    document = Document(output_path)
+    first_section = document.sections[0]
+    second_section = document.sections[1]
+
+    for section in (first_section, second_section):
+        pg_num_type = _section_pg_num_type(section)
+        assert pg_num_type is not None
+        assert pg_num_type.get(qn("w:fmt")) == "lowerRoman"
+        assert pg_num_type.get(qn("w:start")) == "1"
+        assert section.footer.paragraphs[0].alignment == WD_ALIGN_PARAGRAPH.CENTER
+        assert _footer_has_page_field(section)
+
+    with report_path.open("r", encoding="utf-8-sig", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+
+    assert any(row["property"] == "page_number_format" and row["after"] == "lowerRoman" for row in rows)
+    assert any(row["property"] == "page_number_start" and row["after"] == "1" for row in rows)
+    assert any(
+        row["property"] == "footer_page_number_alignment" and row["after"] == "center"
+        for row in rows
+    )
+
+
+def test_normalize_document_reuses_body_mapping_per_document_instance(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    input_path = build_normalization_sample_docx(tmp_path / "paper.docx")
+    call_count = 0
+    original_iter = normalize_module._iter_body_elements
+
+    def counting_iter(document):
+        nonlocal call_count
+        call_count += 1
+        yield from original_iter(document)
+
+    monkeypatch.setattr(normalize_module, "_iter_body_elements", counting_iter)
+
+    normalize_document(input_path, _rule_set(), tmp_path / "normalized")
+
+    assert call_count == 2
+
+
+def test_normalize_document_does_not_reparse_header_or_footer_locations(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    input_path = build_header_footer_variant_docx(tmp_path / "header-footer.docx")
+
+    def fail_header(*_args, **_kwargs):
+        raise AssertionError("header location reparsing should not run")
+
+    def fail_footer(*_args, **_kwargs):
+        raise AssertionError("footer location reparsing should not run")
+
+    monkeypatch.setattr(normalize_module, "_header_location_indexes", fail_header)
+    monkeypatch.setattr(normalize_module, "_footer_location_indexes", fail_footer)
+
+    normalize_document(
+        input_path,
+        _rule_set_with_variant_specific_header_rules(),
+        tmp_path / "normalized",
+    )
+
+
+def test_build_annotation_plan_groups_modified_rows_once() -> None:
+    report_rows = [
+        {
+            "location": "sections[0]",
+            "status": "modified",
+            "property": "page_margin_top",
+            "rule_id": "DOC-1",
+        },
+        {
+            "location": "body_items[0]",
+            "status": "modified",
+            "property": "font_name",
+            "rule_id": "PAR-1",
+        },
+        {
+            "location": "body_items[0]",
+            "status": "modified",
+            "property": "space_after",
+            "rule_id": "PAR-2",
+        },
+        {
+            "location": "body_items[1]",
+            "status": "unchanged",
+            "property": "font_name",
+            "rule_id": "PAR-3",
+        },
+        {
+            "location": "document_settings",
+            "status": "modified",
+            "property": "odd_and_even_pages_header_footer",
+            "rule_id": "DOC-2",
+        },
+    ]
+
+    plan = normalize_module._build_annotation_plan(report_rows)
+
+    assert [row["rule_id"] for row in plan.section_rows] == ["DOC-1", "DOC-2"]
+    assert list(plan.rows_by_location) == ["body_items[0]"]
+    assert [row["rule_id"] for row in plan.rows_by_location["body_items[0]"]] == ["PAR-1", "PAR-2"]
+
+
+def test_normalize_document_reuses_in_memory_document_for_annotated_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    input_path = build_normalization_sample_docx(tmp_path / "paper.docx")
+    original_document = normalize_module.Document
+    call_count = 0
+
+    def counting_document(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        return original_document(*args, **kwargs)
+
+    monkeypatch.setattr(normalize_module, "Document", counting_document)
+
+    normalize_document(input_path, _rule_set(), tmp_path / "normalized")
+
+    assert call_count == 1
+
+
+def test_normalize_document_can_apply_section_start_type_rule(tmp_path: Path) -> None:
+    input_path = build_section_page_number_docx(tmp_path / "sectioned.docx")
+
+    output_path, report_path, _ = normalize_document(
+        input_path,
+        _rule_set_with_section_start_type_rule(),
+        tmp_path / "normalized",
+    )
+
+    document = Document(output_path)
+
+    assert document.sections[0].start_type == WD_SECTION_START.ODD_PAGE
+    assert document.sections[1].start_type == WD_SECTION_START.ODD_PAGE
+
+    with report_path.open("r", encoding="utf-8-sig", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+
+    assert any(
+        row["property"] == "section_start_type" and row["after"] == "odd_page"
+        for row in rows
+    )
+
+
+def test_annotated_document_adds_section_start_type_note(tmp_path: Path) -> None:
+    input_path = build_section_page_number_docx(tmp_path / "sectioned.docx")
+
+    _, _, annotated_path = normalize_document(
+        input_path,
+        _rule_set_with_section_start_type_rule(),
+        tmp_path / "normalized",
+    )
+
+    document = Document(annotated_path)
+    first_paragraph = document.paragraphs[0]
+
+    assert "规范化批注" in first_paragraph.text
+    assert "分节起始方式已按规范设为 odd_page" in first_paragraph.text
+
+
+def test_normalize_document_can_apply_different_first_page_header_footer_rule(tmp_path: Path) -> None:
+    input_path = build_section_page_number_docx(tmp_path / "sectioned.docx")
+
+    output_path, report_path, _ = normalize_document(
+        input_path,
+        _rule_set_with_different_first_page_header_footer_rule(),
+        tmp_path / "normalized",
+    )
+
+    document = Document(output_path)
+
+    assert document.sections[0].different_first_page_header_footer is True
+    assert document.sections[1].different_first_page_header_footer is True
+
+    with report_path.open("r", encoding="utf-8-sig", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+
+    assert any(
+        row["property"] == "different_first_page_header_footer" and row["after"] == "\u662f"
+        for row in rows
+    )
+
+
+def test_annotated_document_adds_different_first_page_header_footer_note(tmp_path: Path) -> None:
+    input_path = build_section_page_number_docx(tmp_path / "sectioned.docx")
+
+    _, _, annotated_path = normalize_document(
+        input_path,
+        _rule_set_with_different_first_page_header_footer_rule(),
+        tmp_path / "normalized",
+    )
+
+    document = Document(annotated_path)
+    first_paragraph = document.paragraphs[0]
+
+    assert "[\u89c4\u8303\u5316\u6279\u6ce8]" in first_paragraph.text
+    assert "\u9996\u9875\u4e0d\u540c\u9875\u7709\u9875\u811a\u5df2\u6309\u89c4\u8303\u8bbe\u4e3a \u662f" in first_paragraph.text
+
+
+def test_normalize_document_can_apply_odd_and_even_pages_header_footer_rule(tmp_path: Path) -> None:
+    input_path = build_section_page_number_docx(tmp_path / "sectioned.docx")
+
+    output_path, report_path, _ = normalize_document(
+        input_path,
+        _rule_set_with_odd_and_even_pages_header_footer_rule(),
+        tmp_path / "normalized",
+    )
+
+    document = Document(output_path)
+
+    assert document.settings.odd_and_even_pages_header_footer is True
+
+    with report_path.open("r", encoding="utf-8-sig", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+
+    assert any(
+        row["property"] == "odd_and_even_pages_header_footer" and row["after"] == "\u662f"
+        for row in rows
+    )
+
+
+def test_normalize_document_can_apply_variant_specific_header_rules(tmp_path: Path) -> None:
+    input_path = build_sample_docx(tmp_path / "header-variants.docx")
+
+    output_path, report_path, _ = normalize_document(
+        input_path,
+        _rule_set_with_variant_specific_header_rules(),
+        tmp_path / "normalized",
+    )
+
+    document = Document(output_path)
+    section = document.sections[0]
+
+    assert section.header.paragraphs[0].runs[0]._element.get_or_add_rPr().rFonts.get(qn("w:eastAsia")) == "SimHei"
+    assert section.first_page_header.paragraphs[0].runs[0]._element.get_or_add_rPr().rFonts.get(qn("w:eastAsia")) == "KaiTi"
+    assert section.even_page_header.paragraphs[0].runs[0]._element.get_or_add_rPr().rFonts.get(qn("w:eastAsia")) == "FangSong"
+
+    with report_path.open("r", encoding="utf-8-sig", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+
+    assert any(row["location"] == "headers[0].items[0]" and row["status"] == "modified" for row in rows)
+    assert any(row["location"] == "headers[1].items[0]" and row["status"] == "modified" for row in rows)
+    assert any(row["location"] == "headers[2].items[0]" and row["status"] == "modified" for row in rows)
+
+
+def test_normalize_document_can_apply_variant_specific_footer_rules(tmp_path: Path) -> None:
+    input_path = build_header_footer_variant_docx(tmp_path / "footer-variants.docx")
+
+    output_path, report_path, _ = normalize_document(
+        input_path,
+        _rule_set_with_variant_specific_footer_rules(),
+        tmp_path / "normalized",
+    )
+
+    document = Document(output_path)
+    section = document.sections[0]
+
+    assert section.footer.paragraphs[0].runs[0]._element.get_or_add_rPr().rFonts.get(qn("w:eastAsia")) == "SimHei"
+    assert section.first_page_footer.paragraphs[0].runs[0]._element.get_or_add_rPr().rFonts.get(qn("w:eastAsia")) == "KaiTi"
+    assert section.even_page_footer.paragraphs[0].runs[0]._element.get_or_add_rPr().rFonts.get(qn("w:eastAsia")) == "FangSong"
+
+    with report_path.open("r", encoding="utf-8-sig", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+
+    assert any(row["location"] == "footers[0].items[0]" and row["status"] == "modified" for row in rows)
+    assert any(row["location"] == "footers[1].items[0]" and row["status"] == "modified" for row in rows)
+    assert any(row["location"] == "footers[2].items[0]" and row["status"] == "modified" for row in rows)
+
+
+def test_annotated_document_adds_odd_and_even_pages_header_footer_note(tmp_path: Path) -> None:
+    input_path = build_section_page_number_docx(tmp_path / "sectioned.docx")
+
+    _, _, annotated_path = normalize_document(
+        input_path,
+        _rule_set_with_odd_and_even_pages_header_footer_rule(),
+        tmp_path / "normalized",
+    )
+
+    document = Document(annotated_path)
+    first_paragraph = document.paragraphs[0]
+
+    assert "[\u89c4\u8303\u5316\u6279\u6ce8]" in first_paragraph.text
+    assert "\u5947\u5076\u9875\u4e0d\u540c\u9875\u7709\u9875\u811a\u5df2\u6309\u89c4\u8303\u8bbe\u4e3a \u662f" in first_paragraph.text
+
+
+def test_annotated_document_adds_section_page_number_note(tmp_path: Path) -> None:
+    input_path = build_section_page_number_docx(tmp_path / "sectioned.docx")
+
+    _, _, annotated_path = normalize_document(
+        input_path,
+        _rule_set_with_page_number_rules(),
+        tmp_path / "normalized",
+    )
+
+    document = Document(annotated_path)
+    first_paragraph = document.paragraphs[0]
+
+    assert "[\u89c4\u8303\u5316\u6279\u6ce8]" in first_paragraph.text
+    assert "\u9875\u7801\u683c\u5f0f\u5df2\u6309\u89c4\u8303\u8bbe\u4e3a lowerRoman" in first_paragraph.text
+    assert "\u9875\u7801\u8d77\u59cb\u503c\u5df2\u6309\u89c4\u8303\u8bbe\u4e3a 1" in first_paragraph.text
+    assert "\u9875\u811a\u9875\u7801\u5bf9\u9f50\u5df2\u6309\u89c4\u8303\u8bbe\u4e3a center" in first_paragraph.text
 
 
 def test_normalize_document_resets_heading_and_body_paragraph_formatting(
@@ -368,6 +719,443 @@ def test_annotated_document_marks_only_targeted_table_rows_for_split_rules(tmp_p
     assert body_cell_paragraph.runs[0].font.color.rgb == RGBColor(0xFF, 0x00, 0x00)
     assert "【规范化说明：" in header_cell_paragraph.runs[-1].text
     assert "【规范化说明：" in body_cell_paragraph.runs[-1].text
+
+
+def test_normalize_document_can_apply_column_and_cell_table_rules(tmp_path: Path) -> None:
+    input_path = build_header_and_table_normalization_docx(tmp_path / "header-table.docx")
+
+    output_path, report_path, _ = normalize_document(
+        input_path,
+        _rule_set_with_column_and_cell_table_rules(),
+        tmp_path / "normalized",
+    )
+
+    document = Document(output_path)
+    table = document.tables[0]
+
+    first_column_header = table.cell(0, 0).paragraphs[0].runs[0]
+    first_column_body = table.cell(1, 0).paragraphs[0].runs[0]
+    untouched_cell = table.cell(0, 1).paragraphs[0].runs[0]
+    targeted_cell = table.cell(1, 1).paragraphs[0].runs[0]
+
+    assert first_column_header._element.get_or_add_rPr().rFonts.get(qn("w:eastAsia")) == "SimHei"
+    assert first_column_body._element.get_or_add_rPr().rFonts.get(qn("w:eastAsia")) == "SimHei"
+    assert untouched_cell._element.get_or_add_rPr().rFonts.get(qn("w:eastAsia")) in {None, "Calibri"}
+    assert targeted_cell.font.size.pt == pytest.approx(14.0, abs=0.1)
+    assert untouched_cell.font.size.pt == pytest.approx(9.0, abs=0.1)
+
+    with report_path.open("r", encoding="utf-8-sig", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+
+    column_row = next(
+        row for row in rows
+        if row["text_preview"] == "项目一\t项目二\n项目三\t项目四"
+        and row["property"] == "column[0]_font_name"
+    )
+    cell_row = next(
+        row for row in rows
+        if row["text_preview"] == "项目一\t项目二\n项目三\t项目四"
+        and row["property"] == "cell[1,1]_font_size"
+    )
+
+    assert column_row["after"] == "SimHei"
+    assert cell_row["after"] == "14pt"
+
+
+def test_annotated_document_marks_only_targeted_table_cells_for_column_and_cell_rules(
+    tmp_path: Path,
+) -> None:
+    input_path = build_header_and_table_normalization_docx(tmp_path / "header-table.docx")
+
+    _, _, annotated_path = normalize_document(
+        input_path,
+        _rule_set_with_column_and_cell_table_rules(),
+        tmp_path / "normalized",
+    )
+
+    document = Document(annotated_path)
+    table = document.tables[0]
+
+    targeted_column_paragraph = table.cell(0, 0).paragraphs[0]
+    untouched_paragraph = table.cell(0, 1).paragraphs[0]
+    targeted_cell_paragraph = table.cell(1, 1).paragraphs[0]
+
+    assert targeted_column_paragraph.runs[0].font.color.rgb == RGBColor(0xFF, 0x00, 0x00)
+    assert untouched_paragraph.runs[0].font.color.rgb is None
+    assert targeted_cell_paragraph.runs[0].font.color.rgb == RGBColor(0xFF, 0x00, 0x00)
+    assert "第1列" in "".join(run.text for run in targeted_column_paragraph.runs[1:])
+    assert "第2行第2列" in "".join(run.text for run in targeted_cell_paragraph.runs[1:])
+
+
+def test_normalize_document_can_apply_table_rules_by_header_name(tmp_path: Path) -> None:
+    input_path = build_header_and_table_normalization_docx(tmp_path / "header-table.docx")
+
+    output_path, report_path, _ = normalize_document(
+        input_path,
+        _rule_set_with_header_named_table_rules(),
+        tmp_path / "normalized",
+    )
+
+    document = Document(output_path)
+    table = document.tables[0]
+
+    target_header = table.cell(0, 1).paragraphs[0].runs[0]
+    target_body = table.cell(1, 1).paragraphs[0].runs[0]
+    untouched_body = table.cell(1, 0).paragraphs[0].runs[0]
+
+    assert target_header._element.get_or_add_rPr().rFonts.get(qn("w:eastAsia")) == "SimHei"
+    assert target_body._element.get_or_add_rPr().rFonts.get(qn("w:eastAsia")) == "SimHei"
+    assert untouched_body._element.get_or_add_rPr().rFonts.get(qn("w:eastAsia")) in {None, "Calibri"}
+
+    with report_path.open("r", encoding="utf-8-sig", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+
+    header_named_row = next(
+        row for row in rows
+        if row["text_preview"] == "项目一\t项目二\n项目三\t项目四"
+        and row["property"] == "column_by_header[项目二]_font_name"
+    )
+
+    assert header_named_row["after"] == "SimHei"
+
+
+def test_annotated_document_marks_only_header_named_table_column_in_red(tmp_path: Path) -> None:
+    input_path = build_header_and_table_normalization_docx(tmp_path / "header-table.docx")
+
+    _, _, annotated_path = normalize_document(
+        input_path,
+        _rule_set_with_header_named_table_rules(),
+        tmp_path / "normalized",
+    )
+
+    document = Document(annotated_path)
+    table = document.tables[0]
+
+    targeted_header_paragraph = table.cell(0, 1).paragraphs[0]
+    targeted_body_paragraph = table.cell(1, 1).paragraphs[0]
+    untouched_paragraph = table.cell(1, 0).paragraphs[0]
+
+    assert targeted_header_paragraph.runs[0].font.color.rgb == RGBColor(0xFF, 0x00, 0x00)
+    assert targeted_body_paragraph.runs[0].font.color.rgb == RGBColor(0xFF, 0x00, 0x00)
+    assert untouched_paragraph.runs[0].font.color.rgb is None
+    assert '表头“项目二”列' in "".join(run.text for run in targeted_body_paragraph.runs[1:])
+
+
+def test_normalize_document_can_apply_table_rules_by_column_range(tmp_path: Path) -> None:
+    input_path = build_header_and_table_normalization_docx(tmp_path / "header-table.docx")
+
+    output_path, report_path, _ = normalize_document(
+        input_path,
+        _rule_set_with_column_range_table_rules(),
+        tmp_path / "normalized",
+    )
+
+    document = Document(output_path)
+    table = document.tables[0]
+
+    first_column_run = table.cell(0, 0).paragraphs[0].runs[0]
+    second_column_run = table.cell(0, 1).paragraphs[0].runs[0]
+
+    assert first_column_run.font.size.pt == pytest.approx(14.0, abs=0.1)
+    assert second_column_run.font.size.pt == pytest.approx(14.0, abs=0.1)
+
+    with report_path.open("r", encoding="utf-8-sig", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+
+    range_row = next(
+        row for row in rows
+        if row["text_preview"] == "项目一\t项目二\n项目三\t项目四"
+        and row["property"] == "column_range[0:2]_font_size"
+    )
+
+    assert range_row["after"] == "14pt"
+
+
+def test_annotated_document_marks_only_targeted_table_column_range_in_red(tmp_path: Path) -> None:
+    input_path = build_header_and_table_normalization_docx(tmp_path / "header-table.docx")
+
+    _, _, annotated_path = normalize_document(
+        input_path,
+        _rule_set_with_column_range_table_rules(),
+        tmp_path / "normalized",
+    )
+
+    document = Document(annotated_path)
+    table = document.tables[0]
+
+    first_column_paragraph = table.cell(0, 0).paragraphs[0]
+    second_column_paragraph = table.cell(0, 1).paragraphs[0]
+
+    assert first_column_paragraph.runs[0].font.color.rgb == RGBColor(0xFF, 0x00, 0x00)
+    assert second_column_paragraph.runs[0].font.color.rgb == RGBColor(0xFF, 0x00, 0x00)
+    assert "第1列到第2列" in "".join(run.text for run in second_column_paragraph.runs[1:])
+
+
+def test_normalize_document_can_apply_table_rules_by_row_index(tmp_path: Path) -> None:
+    input_path = build_header_and_table_normalization_docx(tmp_path / "header-table.docx")
+
+    output_path, report_path, _ = normalize_document(
+        input_path,
+        _rule_set_with_row_table_rules(),
+        tmp_path / "normalized",
+    )
+
+    document = Document(output_path)
+    table = document.tables[0]
+
+    target_row_first_cell = table.cell(1, 0).paragraphs[0].runs[0]
+    target_row_second_cell = table.cell(1, 1).paragraphs[0].runs[0]
+    untouched_row_first_cell = table.cell(0, 0).paragraphs[0].runs[0]
+
+    assert target_row_first_cell._element.get_or_add_rPr().rFonts.get(qn("w:eastAsia")) == "SimHei"
+    assert target_row_second_cell._element.get_or_add_rPr().rFonts.get(qn("w:eastAsia")) == "SimHei"
+    assert untouched_row_first_cell._element.get_or_add_rPr().rFonts.get(qn("w:eastAsia")) in {None, "Calibri"}
+
+    with report_path.open("r", encoding="utf-8-sig", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+
+    row_rule = next(
+        row for row in rows
+        if row["text_preview"] == "项目一\t项目二\n项目三\t项目四"
+        and row["property"] == "row[1]_font_name"
+    )
+
+    assert row_rule["after"] == "SimHei"
+
+
+def test_normalize_document_can_apply_table_rules_by_row_range(tmp_path: Path) -> None:
+    input_path = build_header_and_table_normalization_docx(tmp_path / "header-table.docx")
+
+    output_path, report_path, _ = normalize_document(
+        input_path,
+        _rule_set_with_row_range_table_rules(),
+        tmp_path / "normalized",
+    )
+
+    document = Document(output_path)
+    table = document.tables[0]
+
+    header_row_cell = table.cell(0, 0).paragraphs[0].runs[0]
+    body_row_cell = table.cell(1, 0).paragraphs[0].runs[0]
+
+    assert header_row_cell.font.size.pt == pytest.approx(14.0, abs=0.1)
+    assert body_row_cell.font.size.pt == pytest.approx(14.0, abs=0.1)
+
+    with report_path.open("r", encoding="utf-8-sig", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+
+    row_range_rule = next(
+        row for row in rows
+        if row["text_preview"] == "项目一\t项目二\n项目三\t项目四"
+        and row["property"] == "row_range[0:2]_font_size"
+    )
+
+    assert row_range_rule["after"] == "14pt"
+
+
+def test_annotated_document_marks_only_targeted_rows_in_red(tmp_path: Path) -> None:
+    input_path = build_header_and_table_normalization_docx(tmp_path / "header-table.docx")
+
+    _, _, annotated_path = normalize_document(
+        input_path,
+        _rule_set_with_row_table_rules(),
+        tmp_path / "normalized",
+    )
+
+    document = Document(annotated_path)
+    table = document.tables[0]
+
+    targeted_row_paragraph = table.cell(1, 0).paragraphs[0]
+    untouched_row_paragraph = table.cell(0, 0).paragraphs[0]
+
+    assert targeted_row_paragraph.runs[0].font.color.rgb == RGBColor(0xFF, 0x00, 0x00)
+    assert untouched_row_paragraph.runs[0].font.color.rgb is None
+    assert "第2行" in "".join(run.text for run in targeted_row_paragraph.runs[1:])
+
+
+def test_annotated_document_marks_only_targeted_row_range_in_red(tmp_path: Path) -> None:
+    input_path = build_header_and_table_normalization_docx(tmp_path / "header-table.docx")
+
+    _, _, annotated_path = normalize_document(
+        input_path,
+        _rule_set_with_row_range_table_rules(),
+        tmp_path / "normalized",
+    )
+
+    document = Document(annotated_path)
+    table = document.tables[0]
+
+    header_row_paragraph = table.cell(0, 0).paragraphs[0]
+    body_row_paragraph = table.cell(1, 0).paragraphs[0]
+
+    assert header_row_paragraph.runs[0].font.color.rgb == RGBColor(0xFF, 0x00, 0x00)
+    assert body_row_paragraph.runs[0].font.color.rgb == RGBColor(0xFF, 0x00, 0x00)
+    assert "第1行到第2行" in "".join(run.text for run in body_row_paragraph.runs[1:])
+
+
+def test_normalize_document_can_apply_table_rules_by_cell_range(tmp_path: Path) -> None:
+    input_path = build_header_and_table_normalization_docx(tmp_path / "header-table.docx")
+
+    output_path, report_path, _ = normalize_document(
+        input_path,
+        _rule_set_with_cell_range_table_rules(),
+        tmp_path / "normalized",
+    )
+
+    document = Document(output_path)
+    table = document.tables[0]
+
+    top_left = table.cell(0, 0).paragraphs[0].runs[0]
+    top_right = table.cell(0, 1).paragraphs[0].runs[0]
+    bottom_left = table.cell(1, 0).paragraphs[0].runs[0]
+    bottom_right = table.cell(1, 1).paragraphs[0].runs[0]
+
+    assert top_left._element.get_or_add_rPr().rFonts.get(qn("w:eastAsia")) == "SimHei"
+    assert top_right._element.get_or_add_rPr().rFonts.get(qn("w:eastAsia")) == "SimHei"
+    assert bottom_left._element.get_or_add_rPr().rFonts.get(qn("w:eastAsia")) == "SimHei"
+    assert bottom_right._element.get_or_add_rPr().rFonts.get(qn("w:eastAsia")) == "SimHei"
+
+    with report_path.open("r", encoding="utf-8-sig", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+
+    range_rule = next(
+        row for row in rows
+        if row["text_preview"] == "项目一\t项目二\n项目三\t项目四"
+        and row["property"] == "cell_range[0:2,0:2]_font_name"
+    )
+
+    assert range_rule["after"] == "SimHei"
+
+
+def test_annotated_document_marks_only_targeted_cell_range_in_red(tmp_path: Path) -> None:
+    input_path = build_header_and_table_normalization_docx(tmp_path / "header-table.docx")
+
+    _, _, annotated_path = normalize_document(
+        input_path,
+        _rule_set_with_cell_range_table_rules(),
+        tmp_path / "normalized",
+    )
+
+    document = Document(annotated_path)
+    table = document.tables[0]
+
+    top_left = table.cell(0, 0).paragraphs[0]
+    bottom_right = table.cell(1, 1).paragraphs[0]
+
+    assert top_left.runs[0].font.color.rgb == RGBColor(0xFF, 0x00, 0x00)
+    assert bottom_right.runs[0].font.color.rgb == RGBColor(0xFF, 0x00, 0x00)
+    assert "第1行到第2行、第1列到第2列" in "".join(run.text for run in bottom_right.runs[1:])
+
+
+def test_normalize_document_can_apply_table_bold_and_alignment_rules(tmp_path: Path) -> None:
+    input_path = build_header_and_table_normalization_docx(tmp_path / "header-table.docx")
+
+    output_path, report_path, _ = normalize_document(
+        input_path,
+        _rule_set_with_table_bold_and_alignment_rules(),
+        tmp_path / "normalized",
+    )
+
+    document = Document(output_path)
+    table = document.tables[0]
+
+    first_column_header = table.cell(0, 0).paragraphs[0]
+    first_column_body = table.cell(1, 0).paragraphs[0]
+    second_column_header = table.cell(0, 1).paragraphs[0]
+
+    assert first_column_header.runs[0].bold is True
+    assert first_column_body.runs[0].bold is True
+    assert second_column_header.runs[0].bold in {None, False}
+    assert second_column_header.alignment == WD_ALIGN_PARAGRAPH.CENTER
+    assert first_column_header.alignment != WD_ALIGN_PARAGRAPH.CENTER
+
+    with report_path.open("r", encoding="utf-8-sig", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+
+    bold_row = next(
+        row for row in rows
+        if row["text_preview"] == "项目一\t项目二\n项目三\t项目四"
+        and row["property"] == "column[0]_bold"
+    )
+    alignment_row = next(
+        row for row in rows
+        if row["text_preview"] == "项目一\t项目二\n项目三\t项目四"
+        and row["property"] == "cell[0,1]_alignment"
+    )
+
+    assert bold_row["after"] == "是"
+    assert alignment_row["after"] == "center"
+
+
+def test_annotated_document_marks_table_bold_and_alignment_changes_in_red(tmp_path: Path) -> None:
+    input_path = build_header_and_table_normalization_docx(tmp_path / "header-table.docx")
+
+    _, _, annotated_path = normalize_document(
+        input_path,
+        _rule_set_with_table_bold_and_alignment_rules(),
+        tmp_path / "normalized",
+    )
+
+    document = Document(annotated_path)
+    table = document.tables[0]
+
+    bold_target = table.cell(0, 0).paragraphs[0]
+    alignment_target = table.cell(0, 1).paragraphs[0]
+
+    assert bold_target.runs[0].font.color.rgb == RGBColor(0xFF, 0x00, 0x00)
+    assert alignment_target.runs[0].font.color.rgb == RGBColor(0xFF, 0x00, 0x00)
+    assert "第1列加粗原为 否，调整为 是" in "".join(run.text for run in bold_target.runs[1:])
+    assert "第1行第2列对齐原为 left，调整为 center" in "".join(
+        run.text for run in alignment_target.runs[1:]
+    )
+
+
+def test_normalize_document_can_apply_table_vertical_alignment_and_border_rules(tmp_path: Path) -> None:
+    input_path = build_header_and_table_normalization_docx(tmp_path / "header-table.docx")
+
+    output_path, report_path, _ = normalize_document(
+        input_path,
+        _rule_set_with_table_vertical_alignment_and_border_rules(),
+        tmp_path / "normalized",
+    )
+
+    document = Document(output_path)
+    table = document.tables[0]
+
+    header_left = table.cell(0, 0)
+    header_right = table.cell(0, 1)
+    body_left = table.cell(1, 0)
+
+    assert header_left.vertical_alignment == WD_CELL_VERTICAL_ALIGNMENT.CENTER
+    assert header_right.vertical_alignment == WD_CELL_VERTICAL_ALIGNMENT.CENTER
+    assert body_left.vertical_alignment != WD_CELL_VERTICAL_ALIGNMENT.CENTER
+    assert _cell_border_values(header_left) == {"single"}
+    assert _cell_border_values(body_left) != {"single"}
+
+    with report_path.open("r", encoding="utf-8-sig", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+
+    vertical_row = next(row for row in rows if row["property"] == "header_row_vertical_alignment")
+    border_row = next(row for row in rows if row["property"] == "cell[0,0]_border")
+
+    assert vertical_row["after"] == "center"
+    assert border_row["after"] == "single"
+
+
+def test_annotated_document_adds_table_vertical_alignment_and_border_notes(tmp_path: Path) -> None:
+    input_path = build_header_and_table_normalization_docx(tmp_path / "header-table.docx")
+
+    _, _, annotated_path = normalize_document(
+        input_path,
+        _rule_set_with_table_vertical_alignment_and_border_rules(),
+        tmp_path / "normalized",
+    )
+
+    document = Document(annotated_path)
+    note_texts = [paragraph.text for paragraph in document.paragraphs if "规范" in paragraph.text]
+
+    assert any("表头垂直对齐原为" in text and "规范为 center" in text for text in note_texts)
+    assert any("第1行第1列边框原为" in text and "规范为 single" in text for text in note_texts)
 
 
 def test_normalize_document_aligns_header_indexes_when_earlier_headers_are_empty(
@@ -826,6 +1614,224 @@ def _rule_set_with_font_size_rule() -> RuleSet:
     )
 
 
+def _rule_set_with_page_number_rules() -> RuleSet:
+    base = _rule_set()
+    return RuleSet(
+        document_rules=[
+            DocumentRule(
+                rule_id="DOC-PAGE-FORMAT",
+                priority=10,
+                property_name="page_number_format",
+                value="lowerRoman",
+                scope="document",
+            ),
+            DocumentRule(
+                rule_id="DOC-PAGE-START",
+                priority=11,
+                property_name="page_number_start",
+                value="1",
+                scope="document",
+            ),
+            DocumentRule(
+                rule_id="DOC-PAGE-ALIGN",
+                priority=12,
+                property_name="footer_page_number_alignment",
+                value="center",
+                scope="document",
+            ),
+        ],
+        paragraph_rules=[],
+        numbering_rules=[],
+        table_rules=[],
+        special_object_rules=[],
+        report_schema=base.report_schema,
+    )
+
+
+def _rule_set_with_section_start_type_rule() -> RuleSet:
+    base = _rule_set()
+    return RuleSet(
+        document_rules=[
+            DocumentRule(
+                rule_id="DOC-SECTION-START",
+                priority=10,
+                property_name="section_start_type",
+                value="odd_page",
+                scope="document",
+            ),
+        ],
+        paragraph_rules=[],
+        numbering_rules=[],
+        table_rules=[],
+        special_object_rules=[],
+        report_schema=base.report_schema,
+    )
+
+
+def _rule_set_with_different_first_page_header_footer_rule() -> RuleSet:
+    base = _rule_set()
+    return RuleSet(
+        document_rules=[
+            DocumentRule(
+                rule_id="DOC-DIFFERENT-FIRST-PAGE",
+                priority=10,
+                property_name="different_first_page_header_footer",
+                value="true",
+                scope="document",
+            ),
+        ],
+        paragraph_rules=[],
+        numbering_rules=[],
+        table_rules=[],
+        special_object_rules=[],
+        report_schema=base.report_schema,
+    )
+
+
+def _rule_set_with_odd_and_even_pages_header_footer_rule() -> RuleSet:
+    base = _rule_set()
+    return RuleSet(
+        document_rules=[
+            DocumentRule(
+                rule_id="DOC-ODD-EVEN-HEADERS",
+                priority=10,
+                property_name="odd_and_even_pages_header_footer",
+                value="true",
+                scope="document",
+            ),
+        ],
+        paragraph_rules=[],
+        numbering_rules=[],
+        table_rules=[],
+        special_object_rules=[],
+        report_schema=base.report_schema,
+    )
+
+
+def _rule_set_with_variant_specific_header_rules() -> RuleSet:
+    base = _rule_set()
+    return RuleSet(
+        document_rules=[],
+        paragraph_rules=[
+            ParagraphRule(
+                rule_id="HDR-DEFAULT-FONT",
+                priority=10,
+                match_type="class",
+                match_value="default_running_header",
+                target_property="font_name",
+                target_value="SimHei",
+            ),
+            ParagraphRule(
+                rule_id="HDR-FIRST-FONT",
+                priority=10,
+                match_type="class",
+                match_value="first_page_running_header",
+                target_property="font_name",
+                target_value="KaiTi",
+            ),
+            ParagraphRule(
+                rule_id="HDR-EVEN-FONT",
+                priority=10,
+                match_type="class",
+                match_value="even_page_running_header",
+                target_property="font_name",
+                target_value="FangSong",
+            ),
+        ],
+        numbering_rules=[],
+        table_rules=[],
+        special_object_rules=[
+            SpecialObjectRule(
+                rule_id="HDR-DEFAULT-CLASS",
+                priority=10,
+                object_type="default_header",
+                match_type="text",
+                match_value="Shared header",
+                target_object_type="default_running_header",
+            ),
+            SpecialObjectRule(
+                rule_id="HDR-FIRST-CLASS",
+                priority=10,
+                object_type="first_page_header",
+                match_type="text",
+                match_value="Section 1 first-page header",
+                target_object_type="first_page_running_header",
+            ),
+            SpecialObjectRule(
+                rule_id="HDR-EVEN-CLASS",
+                priority=10,
+                object_type="even_page_header",
+                match_type="text",
+                match_value="Section 1 even-page header",
+                target_object_type="even_page_running_header",
+            ),
+        ],
+        report_schema=base.report_schema,
+    )
+
+
+def _rule_set_with_variant_specific_footer_rules() -> RuleSet:
+    base = _rule_set()
+    return RuleSet(
+        document_rules=[],
+        paragraph_rules=[
+            ParagraphRule(
+                rule_id="FTR-DEFAULT-FONT",
+                priority=10,
+                match_type="class",
+                match_value="default_running_footer",
+                target_property="font_name",
+                target_value="SimHei",
+            ),
+            ParagraphRule(
+                rule_id="FTR-FIRST-FONT",
+                priority=10,
+                match_type="class",
+                match_value="first_page_running_footer",
+                target_property="font_name",
+                target_value="KaiTi",
+            ),
+            ParagraphRule(
+                rule_id="FTR-EVEN-FONT",
+                priority=10,
+                match_type="class",
+                match_value="even_page_running_footer",
+                target_property="font_name",
+                target_value="FangSong",
+            ),
+        ],
+        numbering_rules=[],
+        table_rules=[],
+        special_object_rules=[
+            SpecialObjectRule(
+                rule_id="FTR-DEFAULT-CLASS",
+                priority=10,
+                object_type="default_footer",
+                match_type="text",
+                match_value="Shared footer",
+                target_object_type="default_running_footer",
+            ),
+            SpecialObjectRule(
+                rule_id="FTR-FIRST-CLASS",
+                priority=10,
+                object_type="first_page_footer",
+                match_type="text",
+                match_value="Section 1 first-page footer",
+                target_object_type="first_page_running_footer",
+            ),
+            SpecialObjectRule(
+                rule_id="FTR-EVEN-CLASS",
+                priority=10,
+                object_type="even_page_footer",
+                match_type="text",
+                match_value="Section 1 even-page footer",
+                target_object_type="even_page_running_footer",
+            ),
+        ],
+        report_schema=base.report_schema,
+    )
+
+
 def _rule_set_with_header_and_table_rules() -> RuleSet:
     base = _rule_set()
     return RuleSet(
@@ -919,6 +1925,198 @@ def _rule_set_with_split_table_rules() -> RuleSet:
                 match_value=".*",
                 target_property="body_rows_font_size",
                 target_value="10.5pt",
+            ),
+        ],
+        special_object_rules=[],
+        report_schema=base.report_schema,
+    )
+
+
+def _rule_set_with_column_and_cell_table_rules() -> RuleSet:
+    base = _rule_set()
+    return RuleSet(
+        document_rules=base.document_rules,
+        paragraph_rules=[],
+        numbering_rules=[],
+        table_rules=[
+            TableRule(
+                rule_id="TBL-COL0-FONT",
+                priority=10,
+                match_type="regex",
+                match_value=".*",
+                target_property="column[0]_font_name",
+                target_value="SimHei",
+            ),
+            TableRule(
+                rule_id="TBL-CELL11-SIZE",
+                priority=11,
+                match_type="regex",
+                match_value=".*",
+                target_property="cell[1,1]_font_size",
+                target_value="14pt",
+            ),
+        ],
+        special_object_rules=[],
+        report_schema=base.report_schema,
+    )
+
+
+def _rule_set_with_header_named_table_rules() -> RuleSet:
+    base = _rule_set()
+    return RuleSet(
+        document_rules=base.document_rules,
+        paragraph_rules=[],
+        numbering_rules=[],
+        table_rules=[
+            TableRule(
+                rule_id="TBL-HEADER-NAME-FONT",
+                priority=10,
+                match_type="regex",
+                match_value=".*",
+                target_property="column_by_header[项目二]_font_name",
+                target_value="SimHei",
+            ),
+        ],
+        special_object_rules=[],
+        report_schema=base.report_schema,
+    )
+
+
+def _rule_set_with_column_range_table_rules() -> RuleSet:
+    base = _rule_set()
+    return RuleSet(
+        document_rules=base.document_rules,
+        paragraph_rules=[],
+        numbering_rules=[],
+        table_rules=[
+            TableRule(
+                rule_id="TBL-COL-RANGE-SIZE",
+                priority=10,
+                match_type="regex",
+                match_value=".*",
+                target_property="column_range[0:2]_font_size",
+                target_value="14pt",
+            ),
+        ],
+        special_object_rules=[],
+        report_schema=base.report_schema,
+    )
+
+
+def _rule_set_with_row_table_rules() -> RuleSet:
+    base = _rule_set()
+    return RuleSet(
+        document_rules=base.document_rules,
+        paragraph_rules=[],
+        numbering_rules=[],
+        table_rules=[
+            TableRule(
+                rule_id="TBL-ROW1-FONT",
+                priority=10,
+                match_type="regex",
+                match_value=".*",
+                target_property="row[1]_font_name",
+                target_value="SimHei",
+            ),
+        ],
+        special_object_rules=[],
+        report_schema=base.report_schema,
+    )
+
+
+def _rule_set_with_row_range_table_rules() -> RuleSet:
+    base = _rule_set()
+    return RuleSet(
+        document_rules=base.document_rules,
+        paragraph_rules=[],
+        numbering_rules=[],
+        table_rules=[
+            TableRule(
+                rule_id="TBL-ROW-RANGE-SIZE",
+                priority=10,
+                match_type="regex",
+                match_value=".*",
+                target_property="row_range[0:2]_font_size",
+                target_value="14pt",
+            ),
+        ],
+        special_object_rules=[],
+        report_schema=base.report_schema,
+    )
+
+
+def _rule_set_with_cell_range_table_rules() -> RuleSet:
+    base = _rule_set()
+    return RuleSet(
+        document_rules=base.document_rules,
+        paragraph_rules=[],
+        numbering_rules=[],
+        table_rules=[
+            TableRule(
+                rule_id="TBL-CELL-RANGE-FONT",
+                priority=10,
+                match_type="regex",
+                match_value=".*",
+                target_property="cell_range[0:2,0:2]_font_name",
+                target_value="SimHei",
+            ),
+        ],
+        special_object_rules=[],
+        report_schema=base.report_schema,
+    )
+
+
+def _rule_set_with_table_bold_and_alignment_rules() -> RuleSet:
+    base = _rule_set()
+    return RuleSet(
+        document_rules=base.document_rules,
+        paragraph_rules=[],
+        numbering_rules=[],
+        table_rules=[
+            TableRule(
+                rule_id="TBL-COL0-BOLD",
+                priority=10,
+                match_type="regex",
+                match_value=".*",
+                target_property="column[0]_bold",
+                target_value="true",
+            ),
+            TableRule(
+                rule_id="TBL-CELL01-ALIGN",
+                priority=11,
+                match_type="regex",
+                match_value=".*",
+                target_property="cell[0,1]_alignment",
+                target_value="center",
+            ),
+        ],
+        special_object_rules=[],
+        report_schema=base.report_schema,
+    )
+
+
+def _rule_set_with_table_vertical_alignment_and_border_rules() -> RuleSet:
+    base = _rule_set()
+    return RuleSet(
+        document_rules=base.document_rules,
+        paragraph_rules=[],
+        numbering_rules=[],
+        table_rules=[
+            TableRule(
+                rule_id="TBL-HEADER-VALIGN",
+                priority=10,
+                match_type="regex",
+                match_value=".*",
+                target_property="header_row_vertical_alignment",
+                target_value="center",
+            ),
+            TableRule(
+                rule_id="TBL-CELL00-BORDER",
+                priority=11,
+                match_type="regex",
+                match_value=".*",
+                target_property="cell[0,0]_border",
+                target_value="single",
             ),
         ],
         special_object_rules=[],

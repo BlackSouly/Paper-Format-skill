@@ -15,6 +15,7 @@ from paper_format_normalizer.parse import (
     ParsedBodyParagraph,
     ParsedBodyTable,
     ParsedDocument,
+    ParsedFooter,
     ParsedHeader,
 )
 
@@ -83,6 +84,29 @@ def classify_document(
                 )
             )
 
+    for footer_index, footer in enumerate(document.footers):
+        for item_index, item in enumerate(footer.items):
+            if isinstance(item, ParsedBodyParagraph):
+                results.append(
+                    _classify_footer_paragraph(
+                        footer=footer,
+                        footer_index=footer_index,
+                        item=item,
+                        item_index=item_index,
+                        rule_set=rule_set,
+                    )
+                )
+                continue
+            results.append(
+                _classify_footer_table(
+                    footer=footer,
+                    footer_index=footer_index,
+                    item=item,
+                    item_index=item_index,
+                    rule_set=rule_set,
+                )
+            )
+
     for body_index, item in enumerate(document.body_items):
         if isinstance(item, ParsedBodyParagraph):
             results.append(
@@ -117,7 +141,11 @@ def _classify_header_paragraph(
         location=f"headers[{header_index}].items[{item_index}]",
         object_type="header",
         original_text=item.text,
-        candidates=_header_special_candidates(rule_set.special_object_rules, item.text),
+        candidates=_header_special_candidates(
+            rule_set.special_object_rules,
+            item.text,
+            _section_content_rule_object_types("header", header.variant, "header"),
+        ),
         no_match_reason=(
             "no matching classification rule for header object"
             f" ({header.variant}, sections={','.join(str(index) for index in header.section_indices)})"
@@ -174,10 +202,62 @@ def _classify_header_table(
         candidates=_header_special_candidates(
             rule_set.special_object_rules,
             flattened_text,
+            _section_content_rule_object_types("header", header.variant, "header_table"),
         ),
         no_match_reason=(
             "no matching classification rule for header table"
             f" ({header.variant}, sections={','.join(str(index) for index in header.section_indices)})"
+        ),
+    )
+
+
+def _classify_footer_paragraph(
+    *,
+    footer: ParsedFooter,
+    footer_index: int,
+    item: ParsedBodyParagraph,
+    item_index: int,
+    rule_set: RuleSet,
+) -> ClassifiedObjectResult:
+    return _resolve_result(
+        object_id=f"footer-{footer_index}-item-{item_index}",
+        location=f"footers[{footer_index}].items[{item_index}]",
+        object_type="footer",
+        original_text=item.text,
+        candidates=_footer_special_candidates(
+            rule_set.special_object_rules,
+            item.text,
+            _section_content_rule_object_types("footer", footer.variant, "footer"),
+        ),
+        no_match_reason=(
+            "no matching classification rule for footer object"
+            f" ({footer.variant}, sections={','.join(str(index) for index in footer.section_indices)})"
+        ),
+    )
+
+
+def _classify_footer_table(
+    *,
+    footer: ParsedFooter,
+    footer_index: int,
+    item: ParsedBodyTable,
+    item_index: int,
+    rule_set: RuleSet,
+) -> ClassifiedObjectResult:
+    flattened_text = _flatten_table_text(item)
+    return _resolve_result(
+        object_id=f"footer-{footer_index}-item-{item_index}",
+        location=f"footers[{footer_index}].items[{item_index}]",
+        object_type="footer_table",
+        original_text=flattened_text,
+        candidates=_footer_special_candidates(
+            rule_set.special_object_rules,
+            flattened_text,
+            _section_content_rule_object_types("footer", footer.variant, "footer_table"),
+        ),
+        no_match_reason=(
+            "no matching classification rule for footer table"
+            f" ({footer.variant}, sections={','.join(str(index) for index in footer.section_indices)})"
         ),
     )
 
@@ -267,10 +347,11 @@ def _table_candidates(
 def _header_special_candidates(
     rules: list[SpecialObjectRule],
     text: str,
+    object_types: tuple[str, ...],
 ) -> list[ClassificationCandidate]:
     candidates: list[ClassificationCandidate] = []
     for rule in rules:
-        if rule.object_type != "header":
+        if rule.object_type not in object_types:
             continue
         if _special_object_rule_matches(rule, text):
             candidates.append(
@@ -281,6 +362,68 @@ def _header_special_candidates(
                 )
             )
     return candidates
+
+
+def _footer_special_candidates(
+    rules: list[SpecialObjectRule],
+    text: str,
+    object_types: tuple[str, ...],
+) -> list[ClassificationCandidate]:
+    candidates: list[ClassificationCandidate] = []
+    for rule in rules:
+        if rule.object_type not in object_types:
+            continue
+        if _special_object_rule_matches(rule, text):
+            candidates.append(
+                ClassificationCandidate(
+                    rule_id=rule.rule_id,
+                    priority=rule.priority,
+                    match_kind="structural",
+                )
+            )
+    return candidates
+
+
+def _section_content_rule_object_types(
+    family: str,
+    variant: str,
+    base_object_type: str,
+) -> tuple[str, ...]:
+    if family == "header" and base_object_type == "header":
+        variant_mapping = {
+            "default": "default_header",
+            "first_page": "first_page_header",
+            "even_page": "even_page_header",
+        }
+        fallback_types = ("header",)
+    elif family == "header" and base_object_type == "header_table":
+        variant_mapping = {
+            "default": "default_header_table",
+            "first_page": "first_page_header_table",
+            "even_page": "even_page_header_table",
+        }
+        fallback_types = ("header_table", "header")
+    elif family == "footer" and base_object_type == "footer":
+        variant_mapping = {
+            "default": "default_footer",
+            "first_page": "first_page_footer",
+            "even_page": "even_page_footer",
+        }
+        fallback_types = ("footer",)
+    elif family == "footer" and base_object_type == "footer_table":
+        variant_mapping = {
+            "default": "default_footer_table",
+            "first_page": "first_page_footer_table",
+            "even_page": "even_page_footer_table",
+        }
+        fallback_types = ("footer_table", "footer")
+    else:
+        raise ValueError(f"unsupported section content family/base object type: {family}/{base_object_type}")
+
+    variant_object_type = variant_mapping.get(variant)
+    if variant_object_type is None:
+        raise ValueError(f"unsupported section content variant: {variant}")
+    return (variant_object_type, *fallback_types)
 
 
 def _numbering_rule_matches(rule: NumberingRule, item: ParsedBodyParagraph) -> bool:

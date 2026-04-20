@@ -3,7 +3,9 @@ from __future__ import annotations
 import csv
 import shutil
 from pathlib import Path
+from statistics import mean
 from typing import Annotated
+from time import perf_counter
 
 import typer
 
@@ -12,6 +14,7 @@ from paper_format_normalizer.conversion import (
     prepare_phase1_input,
 )
 from paper_format_normalizer.normalize import normalize_document
+from paper_format_normalizer.normalize import benchmark_normalize_document
 from paper_format_normalizer.rules import load_rule_set
 
 
@@ -25,6 +28,7 @@ NORMALIZED_SUFFIX = "_\u89c4\u8303\u5316"
 ANNOTATED_SUFFIX = "_\u89c4\u8303\u5316_\u7ea2\u5b57\u6807\u6ce8\u7248"
 REPORT_SUFFIX = "_\u89c4\u8303\u5316_\u4fee\u6539\u62a5\u544a"
 BATCH_SUMMARY_NAME = "\u6279\u91cf\u89c4\u8303\u5316\u6c47\u603b.csv"
+BENCHMARK_SUMMARY_NAME = "benchmark_summary.csv"
 
 
 @app.callback()
@@ -217,6 +221,107 @@ def normalize_batch(
     typer.echo(f"Batch summary: {summary_path}")
 
 
+@app.command()
+def benchmark(
+    input_path: Annotated[
+        Path,
+        typer.Option(
+            "--input",
+            exists=True,
+            dir_okay=False,
+            file_okay=True,
+            readable=True,
+            resolve_path=True,
+            help="Benchmark a single document through the real normalization pipeline.",
+        ),
+    ],
+    rules_path: Annotated[
+        Path,
+        typer.Option(
+            "--rules",
+            exists=True,
+            file_okay=False,
+            dir_okay=True,
+            readable=True,
+            resolve_path=True,
+            help=f"Defaults to {DEFAULT_RULES_DIR}.",
+        ),
+    ] = DEFAULT_RULES_DIR,
+    output_dir: Annotated[
+        Path,
+        typer.Option(
+            "--output-dir",
+            file_okay=False,
+            dir_okay=True,
+            writable=True,
+            resolve_path=True,
+            help=f"Write outputs and benchmark_summary.csv into this directory. Defaults to {DEFAULT_OUTPUT_DIR}.",
+        ),
+    ] = DEFAULT_OUTPUT_DIR,
+    repeat: Annotated[
+        int,
+        typer.Option(
+            "--repeat",
+            min=1,
+            help="Run the normalization pipeline this many times and report average timings.",
+        ),
+    ] = 1,
+) -> None:
+    """Benchmark a single document through the real normalization pipeline."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    started = perf_counter()
+    try:
+        working_input = prepare_phase1_input(input_path)
+    except Phase1ConversionError as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    prepare_input_seconds = perf_counter() - started
+
+    started = perf_counter()
+    try:
+        rule_set = load_rule_set(rules_path)
+    except ValueError as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=1) from exc
+    load_rules_seconds = perf_counter() - started
+
+    runs = [
+        benchmark_normalize_document(working_input, rule_set, output_dir)
+        for _ in range(repeat)
+    ]
+    latest_run = runs[-1]
+
+    metric_names = list(latest_run.timings)
+    averaged_metrics = {
+        metric_name: mean(run.timings[metric_name] for run in runs)
+        for metric_name in metric_names
+    }
+
+    summary_path = output_dir / BENCHMARK_SUMMARY_NAME
+    _write_benchmark_summary(
+        summary_path,
+        {
+            "input_path": str(input_path),
+            "working_input_path": str(working_input),
+            "repeat": str(repeat),
+            "prepare_input_seconds": f"{prepare_input_seconds:.6f}",
+            "load_rules_seconds": f"{load_rules_seconds:.6f}",
+            **{name: f"{value:.6f}" for name, value in averaged_metrics.items()},
+            "normalized_docx": str(latest_run.output_path),
+            "report_csv": str(latest_run.report_path),
+            "annotated_docx": str(latest_run.annotated_path),
+        },
+    )
+
+    typer.echo(f"Benchmark summary: {summary_path}")
+    typer.echo(f"Repeat count: {repeat}")
+    typer.echo(f"prepare_input_seconds={prepare_input_seconds:.6f}")
+    typer.echo(f"load_rules_seconds={load_rules_seconds:.6f}")
+    for metric_name in metric_names:
+        typer.echo(f"{metric_name}={averaged_metrics[metric_name]:.6f}")
+
+
 def _is_normalized_output(path: Path) -> bool:
     stem = path.stem
     suffix = path.suffix.lower()
@@ -244,6 +349,14 @@ def _write_batch_summary(path: Path, rows: list[dict[str, str]]) -> None:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
+
+
+def _write_benchmark_summary(path: Path, row: dict[str, str]) -> None:
+    fieldnames = list(row)
+    with path.open("w", encoding="utf-8-sig", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerow(row)
 
 
 def _rename_batch_outputs_to_input_stem(

@@ -1,2 +1,23 @@
-rule_id,object_type,match_type,match_value,priority,cn_font,en_font,font_size,bold,italic,underline,alignment,vertical_alignment,line_spacing,cell_margin,border_policy,notes
-TAB-001,table_body,word_object,table_cell,10,宋体,Times New Roman,五号,FALSE,FALSE,FALSE,center,middle,single,default,normalize_all,"Adjust alignment and border policy to your requirement"
+rule_id,priority,match_type,match_value,target_property,target_value
+TBL-001,10,regex,.*,font_name,SimSun
+TBL-002,11,regex,.*,font_size,10.5pt
+TBL-003,12,regex,.*,header_row_font_name,SimHei
+TBL-004,13,regex,.*,body_rows_font_size,10.5pt
+TBL-005,14,regex,.*,column[0]_font_name,SimHei
+TBL-006,15,regex,.*,cell[1,1]_font_size,14pt
+TBL-007,16,regex,.*,column_by_header[项目二]_font_name,SimHei
+TBL-008,17,regex,.*,column_range[0:2]_font_size,14pt
+TBL-009,18,regex,.*,row[1]_font_name,SimHei
+TBL-010,19,regex,.*,row_range[0:2]_font_size,14pt
+TBL-011,20,regex,.*,cell_range[0:2,0:2]_font_name,SimHei
+TBL-012,21,regex,.*,header_row_bold,true
+TBL-013,22,regex,.*,body_rows_alignment,center
+TBL-014,23,regex,.*,column[0]_bold,true
+TBL-015,24,regex,.*,cell[0,1]_alignment,center
+TBL-016,25,regex,.*,column_by_header[项目二]_alignment,center
+TBL-017,26,regex,.*,row[1]_bold,true
+TBL-018,27,regex,.*,cell_range[0:2,0:2]_alignment,center
+TBL-019,28,regex,.*,header_row_vertical_alignment,center
+TBL-020,29,regex,.*,cell[0,0]_border,single
+TBL-021,30,regex,.*,column_range[0:2]_vertical_alignment,center
+TBL-022,31,regex,.*,row[1]_border,none

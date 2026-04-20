@@ -36,6 +36,33 @@ def build_sample_docx(path: Path) -> Path:
     return path
 
 
+def build_header_footer_variant_docx(path: Path) -> Path:
+    document = Document()
+    document.settings.odd_and_even_pages_header_footer = True
+
+    section = document.sections[0]
+    section.different_first_page_header_footer = True
+
+    section.header.is_linked_to_previous = False
+    section.header.paragraphs[0].text = "Shared header"
+    section.first_page_header.is_linked_to_previous = False
+    section.first_page_header.paragraphs[0].text = "Section 1 first-page header"
+    section.even_page_header.is_linked_to_previous = False
+    section.even_page_header.paragraphs[0].text = "Section 1 even-page header"
+
+    section.footer.is_linked_to_previous = False
+    section.footer.paragraphs[0].text = "Shared footer"
+    section.first_page_footer.is_linked_to_previous = False
+    section.first_page_footer.paragraphs[0].text = "Section 1 first-page footer"
+    section.even_page_footer.is_linked_to_previous = False
+    section.even_page_footer.paragraphs[0].text = "Section 1 even-page footer"
+
+    document.add_paragraph("Body paragraph")
+
+    document.save(path)
+    return path
+
+
 def build_normalization_sample_docx(
     path: Path,
     *,
@@ -179,6 +206,21 @@ def build_inline_tag_docx(path: Path) -> Path:
     run.font.name = "Calibri"
     run.font.size = Pt(11)
     run.font.bold = False
+
+    document.save(path)
+    return path
+
+
+def build_section_page_number_docx(path: Path) -> Path:
+    document = Document()
+
+    first_section = document.sections[0]
+    first_section.footer.is_linked_to_previous = False
+    document.add_paragraph("Section one body")
+
+    second_section = document.add_section(WD_SECTION.NEW_PAGE)
+    second_section.footer.is_linked_to_previous = False
+    document.add_paragraph("Section two body")
 
     document.save(path)
     return path

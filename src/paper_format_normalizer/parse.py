@@ -32,11 +32,19 @@ class ParsedHeader:
 
 
 @dataclass(frozen=True)
+class ParsedFooter:
+    variant: str
+    section_indices: tuple[int, ...]
+    items: tuple[ParsedBodyItem, ...]
+
+
+@dataclass(frozen=True)
 class ParsedDocument:
     headers: tuple[ParsedHeader, ...]
     body_items: tuple[ParsedBodyItem, ...]
     paragraphs: tuple[ParsedBodyParagraph, ...]
     tables: tuple[ParsedBodyTable, ...]
+    footers: tuple[ParsedFooter, ...] = ()
 
 
 @dataclass
@@ -49,6 +57,7 @@ class _HeaderRecord:
 def parse_docx(path: Path) -> ParsedDocument:
     document = Document(path)
     headers = _parse_headers(document)
+    footers = _parse_footers(document)
     body_items = _parse_body_items(document)
     paragraphs = tuple(
         item for item in body_items if isinstance(item, ParsedBodyParagraph)
@@ -56,6 +65,7 @@ def parse_docx(path: Path) -> ParsedDocument:
     tables = tuple(item for item in body_items if isinstance(item, ParsedBodyTable))
     return ParsedDocument(
         headers=headers,
+        footers=footers,
         body_items=body_items,
         paragraphs=paragraphs,
         tables=tables,
@@ -93,6 +103,40 @@ def _parse_headers(document) -> tuple[ParsedHeader, ...]:
             items=header_records[part_key].items,
         )
         for part_key in header_order
+    )
+
+
+def _parse_footers(document) -> tuple[ParsedFooter, ...]:
+    footer_records: dict[int, _HeaderRecord] = {}
+    footer_order: list[int] = []
+    for section_index, section in enumerate(document.sections):
+        for variant, footer in (
+            ("default", section.footer),
+            ("first_page", section.first_page_footer),
+            ("even_page", section.even_page_footer),
+        ):
+            items = _parse_content_items(footer.iter_inner_content())
+            if not items:
+                continue
+            part_key = id(footer.part)
+            record = footer_records.get(part_key)
+            if record is None:
+                footer_records[part_key] = _HeaderRecord(
+                    variant=variant,
+                    section_indices=[section_index],
+                    items=items,
+                )
+                footer_order.append(part_key)
+                continue
+            if section_index not in record.section_indices:
+                record.section_indices.append(section_index)
+    return tuple(
+        ParsedFooter(
+            variant=footer_records[part_key].variant,
+            section_indices=tuple(footer_records[part_key].section_indices),
+            items=footer_records[part_key].items,
+        )
+        for part_key in footer_order
     )
 
 

@@ -1,2 +1,11 @@
-rule_id,object_type,scope,paper_size,orientation,margin_top_cm,margin_bottom_cm,margin_left_cm,margin_right_cm,header_distance_cm,footer_distance_cm,page_number_requirement,notes
-DOC-001,document,full,A4,portrait,2.54,2.54,3.18,3.18,1.50,1.75,"footer centered arabic numerals","Example row - replace with your real requirement"
+rule_id,priority,property_name,value,scope
+DOC-001,10,page_margin_top,2.54cm,document
+DOC-002,11,page_margin_bottom,2.54cm,document
+DOC-003,12,page_margin_left,3.18cm,document
+DOC-004,13,page_margin_right,3.18cm,document
+DOC-005,14,section_start_type,odd_page,document
+DOC-006,15,page_number_format,lowerRoman,document
+DOC-007,16,page_number_start,1,document
+DOC-008,17,footer_page_number_alignment,center,document
+DOC-009,18,different_first_page_header_footer,true,document
+DOC-010,19,odd_and_even_pages_header_footer,true,document

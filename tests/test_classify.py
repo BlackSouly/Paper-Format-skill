@@ -11,6 +11,7 @@ from paper_format_normalizer.parse import (
     ParsedBodyParagraph,
     ParsedBodyTable,
     ParsedDocument,
+    ParsedFooter,
     ParsedHeader,
 )
 
@@ -341,6 +342,36 @@ def test_header_table_prefers_header_semantics_over_generic_table_rules() -> Non
     assert result.object_results[0].matched_rule_id == "HDR-TABLE"
     assert result.object_results[0].match_kind == "structural"
     assert result.object_results[0].object_type == "header_table"
+
+
+def test_footer_variant_specific_rule_can_match_footer_item() -> None:
+    footer_item = ParsedBodyParagraph(text="Section 1 first-page footer", style_name="Footer")
+    parsed = ParsedDocument(
+        headers=(),
+        footers=(ParsedFooter(variant="first_page", section_indices=(0,), items=(footer_item,)),),
+        body_items=(),
+        paragraphs=(),
+        tables=(),
+    )
+    rules = _rule_set(
+        special_object_rules=[
+            SpecialObjectRule(
+                rule_id="FTR-FIRST",
+                priority=10,
+                object_type="first_page_footer",
+                match_type="text",
+                match_value="Section 1 first-page footer",
+                target_object_type="first_page_running_footer",
+            )
+        ]
+    )
+
+    result = classify_document(parsed, rules)
+
+    assert len(result.object_results) == 1
+    assert result.object_results[0].status == "matched"
+    assert result.object_results[0].matched_rule_id == "FTR-FIRST"
+    assert result.object_results[0].object_type == "footer"
 
 
 def _rule_set(

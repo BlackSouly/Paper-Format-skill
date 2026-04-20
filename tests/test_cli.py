@@ -8,6 +8,7 @@ from docx import Document
 from typer.testing import CliRunner
 
 from paper_format_normalizer.cli import (
+    BENCHMARK_SUMMARY_NAME,
     DEFAULT_INPUT_DIR,
     DEFAULT_OUTPUT_DIR,
     DEFAULT_RULES_DIR,
@@ -185,6 +186,46 @@ def test_normalize_batch_defaults_use_workspace_directories() -> None:
         DEFAULT_RULES_DIR,
         DEFAULT_OUTPUT_DIR,
     )
+
+
+def test_benchmark_command_writes_summary_csv(tmp_path: Path) -> None:
+    runner = CliRunner()
+    rules_path = Path(__file__).resolve().parent / "fixtures" / "sample_rules"
+    input_path = build_normalization_sample_docx(tmp_path / "sample.docx")
+    output_dir = tmp_path / "benchmark"
+
+    result = runner.invoke(
+        app,
+        [
+            "benchmark",
+            "--input",
+            str(input_path),
+            "--rules",
+            str(rules_path),
+            "--output-dir",
+            str(output_dir),
+            "--repeat",
+            "2",
+        ],
+    )
+
+    summary_path = output_dir / BENCHMARK_SUMMARY_NAME
+
+    assert result.exit_code == 0
+    assert summary_path.exists()
+    assert "Benchmark summary:" in result.output
+    assert "Repeat count: 2" in result.output
+
+    with summary_path.open("r", encoding="utf-8-sig", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["repeat"] == "2"
+    assert float(row["prepare_input_seconds"]) >= 0
+    assert float(row["load_rules_seconds"]) >= 0
+    assert float(row["total_seconds"]) >= 0
+    assert row["normalized_docx"].endswith(f"sample{NORMALIZED_SUFFIX}.docx")
 
 
 def test_normalize_batch_processes_supported_inputs_and_skips_normalized_outputs(
